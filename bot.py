@@ -74,6 +74,7 @@ MAIN_MENU_ROWS: list[list[Button]] = [
     [("🤲 نذر و کمک", "menu:donation"), ("🙋 داوطلبی و جهادی", "menu:volunteer")],
     [("🧰 بانک خدمات", "menu:services"), ("📅 طرح‌ها و رویدادها", "menu:events")],
     [("📊 شفافیت و گزارش‌ها", "menu:reports"), ("☎️ راهنما و پشتیبانی", "menu:support")],
+    [("🌐 شبکه دانشگاهی", "menu:network"), ("🎓 آموزش و پادکست", "menu:learning")],
 ]
 
 
@@ -90,6 +91,8 @@ SECTION_DESCRIPTIONS = {
     "events": "📅 طرح‌ها و رویدادها\nپروژه‌های فعال، تقویم برنامه‌ها و ثبت‌نام رویدادها.",
     "reports": "📊 شفافیت و گزارش‌ها\nخروجی‌های تجمیعی بدون افشای اطلاعات خصوصی.",
     "support": "☎️ راهنما و پشتیبانی\nپرسش‌های متداول، ارتباط با پشتیبانی و سایت صندوق.",
+    "network": "🌐 شبکه دانشگاهی\nتوسعه شعب محلی، همکاری بین صندوق‌ها و تقویت شبکه انسانی.",
+    "learning": "🎓 آموزش و پادکست\nکارگاه‌های پیشنهادی، محتوای آموزشی و موضوعات پادکست صندوق.",
 }
 
 
@@ -127,6 +130,18 @@ SUBMENU_ROWS: dict[str, list[list[Button]]] = {
     "events": [
         [("🎯 پروژه‌های فعال", "action:projects"), ("🗓 تقویم رویدادها", "action:calendar")],
         [("✅ ثبت‌نام آزمایشی رویداد", "form:start:event"), ("📢 اطلاعیه‌ها", "action:notices")],
+    ],
+    "network": [
+        [("🌱 پایداری و توسعه ملی", "action:phase4_roadmap"), ("💡 ایده کسب‌وکار اجتماعی", "form:start:enterprise")],
+        [("📋 ایده‌های ثبت‌شدهٔ من", "phase4:my_enterprises")],
+        [("📍 شعب دانشگاهی", "action:branches"), ("🤝 همکاری بین صندوق‌ها", "action:partner_funds")],
+        [("🧭 کمیته‌های محلی", "action:local_committees"), ("➕ اعلام آمادگی برای شعبه", "form:start:branch")],
+        [("📋 علاقه‌مندی شعبهٔ من", "phase3:my_branches")],
+    ],
+    "learning": [
+        [("🧑‍🏫 علاقه‌مندی به کارگاه", "form:start:workshop"), ("🎙 موضوعات پادکست", "action:podcast")],
+        [("📹 محتوای آموزشی کوتاه", "action:learning_content"), ("📚 راهنما و پایگاه دانش", "action:knowledge_base")],
+        [("📋 علاقه‌مندی‌های کارگاهی من", "phase3:my_workshops")],
     ],
     "reports": [
         [("💰 موجودی و گردش مالی", "action:balance"), ("📈 گزارش ماهانه", "action:monthly_report")],
@@ -186,6 +201,33 @@ ACTION_MESSAGES = {
     "rules": "نسخه نهایی قوانین و اساسنامه پس از تصویب در دسترس قرار می‌گیرد.",
     "faq": "پرسش‌های پرتکرار: نحوه عضویت، شرایط وام، مشارکت، داوطلبی و گزارش‌دهی.",
     "contact": "راه ارتباطی رسمی پس از تعیین مسئول پشتیبانی اعلام می‌شود.",
+    "branches": "در حال حاضر شعبهٔ دانشگاهی تأییدشده‌ای در سامانه ثبت نشده است. اگر عضو صندوق هستید، از گزینهٔ «اعلام آمادگی برای شعبه» استفاده کنید.",
+    "partner_funds": "طرح فاز ۳ بر تبادل تجربه و اجرای پروژه‌های مشترک با صندوق‌های دانشگاهی دیگر تأکید دارد؛ همکاری رسمی پس از تأیید مسئولان ثبت می‌شود.",
+    "local_committees": "برای هر دانشگاه، تشکیل کمیتهٔ محلی با نظارت متولی اصلی پیش‌بینی شده است. علاقه‌مندی خود را از مسیر «اعلام آمادگی برای شعبه» ثبت کنید.",
+    "podcast": "🎙 موضوعات پیشنهادی پادکست صندوق:\n• داستان شکل‌گیری صندوق و همیاری دانشجویی\n• سواد و مدیریت مالی دانشجویی\n• تجربهٔ اردوهای جهادی و کار فرهنگی\n• گفت‌وگو با خیرین و فعالان\n\nاین‌ها موضوعات پیشنهادی‌اند؛ هنوز فایل یا قسمت منتشرشده‌ای ثبت نشده است.",
+    "learning_content": "موضوعات پیشنهادی محتوای کوتاه: صرفه‌جویی دانشجویی، راهنمای عضویت، سواد مالی، کارگاه‌های مهارتی و راهنمای مشارکت در اردوها. محتوای منتشرشده پس از تأیید و افزودن پیوند رسمی نمایش داده می‌شود.",
+    "knowledge_base": "راهنماهای مرحله‌ای در حال آماده‌سازی‌اند: عضویت، اعلام علاقه‌مندی به کارگاه، معرفی دانشگاه برای توسعهٔ شعبه و مشارکت داوطلبانه.",
+}
+
+PHASE3_ACTIONS = {
+    "branches", "partner_funds", "local_committees", "podcast",
+    "learning_content", "knowledge_base",
+}
+ACTION_MESSAGES["phase4_roadmap"] = (
+    "نقشهٔ راه فاز ۴: نهادینه‌سازی عملیات، توسعهٔ شبکهٔ دانشگاهی و بررسی ایده‌های کسب‌وکار اجتماعی. "
+    "در این نسخه هیچ تأیید حقوقی، ثبت شرکت یا فعالیت مالی انجام نمی‌شود."
+)
+PHASE4_ACTIONS = {"phase4_roadmap"}
+ENTERPRISE_IDEA_LABELS = {
+    "student_market": "بازارچهٔ دانشجویی",
+    "education_services": "خدمات آموزشی و مهارتی",
+    "digital_services": "خدمات فنی و دیجیتال",
+    "local_supply": "تأمین محلی و زنجیرهٔ خیر",
+}
+ENTERPRISE_CONTRIBUTION_LABELS = {
+    "ideation": "ایده‌پردازی و بررسی",
+    "operations": "همکاری اجرایی",
+    "networking": "معرفی همکار یا متخصص",
 }
 
 
@@ -258,6 +300,58 @@ FORM_SPECS = {
             ("priority", "اولویت؟", [("عادی", "normal"), ("مهم", "important")]),
         ],
     },
+    "workshop": {
+        "title": "🧑‍🏫 اعلام علاقه‌مندی کارگاه",
+        "section": "learning",
+        "persist": "workshop_interest",
+        "steps": [
+            ("topic", "به کدام حوزه علاقه‌مندید؟", [
+                ("برنامه‌نویسی", "programming"),
+                ("گرافیک و ویدئو", "design_video"),
+                ("بازاریابی دیجیتال", "digital_marketing"),
+                ("سواد مالی", "financial_literacy"),
+                ("مهارت‌های نرم", "soft_skills"),
+                ("مهارت‌های زندگی", "life_skills"),
+            ]),
+            ("attendance", "شیوهٔ برگزاری مناسب شما؟", [
+                ("آنلاین", "online"), ("حضوری", "in_person"), ("فرقی ندارد", "either"),
+            ]),
+        ],
+    },
+    "enterprise": {
+        "title": "🌱 اعلام علاقه‌مندی به ایدهٔ کسب‌وکار اجتماعی",
+        "section": "network",
+        "persist": "enterprise_interest",
+        "steps": [
+            ("idea_type", "به کدام حوزه علاقه دارید؟", [
+                ("محصولات و بازارچهٔ دانشجویی", "student_market"),
+                ("خدمات آموزشی و مهارتی", "education_services"),
+                ("خدمات فنی و دیجیتال", "digital_services"),
+                ("تأمین محلی و زنجیرهٔ خیر", "local_supply"),
+            ]),
+            ("contribution", "نقش پیشنهادی شما چیست؟", [
+                ("ایده‌پردازی و بررسی", "ideation"),
+                ("همکاری اجرایی", "operations"),
+                ("معرفی همکار یا متخصص", "networking"),
+            ]),
+        ],
+    },
+    "branch": {
+        "title": "🌐 اعلام آمادگی برای شعبهٔ دانشگاهی",
+        "section": "network",
+        "persist": "branch_interest",
+        "requires_member": True,
+        "steps": [
+            ("team_role", "در چه بخشی می‌توانید همکاری کنید؟", [
+                ("هماهنگی محلی", "local_coordination"),
+                ("برگزاری کارگاه", "workshops"),
+                ("فعالیت جهادی و فرهنگی", "community_projects"),
+            ]),
+            ("availability", "میزان دسترسی شما؟", [
+                ("ماهانه", "monthly"), ("موردی", "occasional"), ("آنلاین", "online"),
+            ]),
+        ],
+    },
 }
 
 FORM_SESSIONS: dict[tuple[str, str], dict] = {}
@@ -265,6 +359,22 @@ FORM_LOCK = threading.Lock()
 MEMBER_SESSIONS: dict[tuple[str, str], dict] = {}
 PENDING_REFERRALS: dict[tuple[str, str], str] = {}
 MEMBER_LOCK = threading.Lock()
+
+WORKSHOP_TOPIC_LABELS = {
+    "programming": "برنامه‌نویسی",
+    "design_video": "گرافیک و ویدئو",
+    "digital_marketing": "بازاریابی دیجیتال",
+    "financial_literacy": "سواد مالی",
+    "soft_skills": "مهارت‌های نرم",
+    "life_skills": "مهارت‌های زندگی",
+}
+ATTENDANCE_LABELS = {"online": "آنلاین", "in_person": "حضوری", "either": "فرقی ندارد"}
+BRANCH_ROLE_LABELS = {
+    "local_coordination": "هماهنگی محلی",
+    "workshops": "برگزاری کارگاه",
+    "community_projects": "فعالیت جهادی و فرهنگی",
+}
+AVAILABILITY_LABELS = {"monthly": "ماهانه", "occasional": "موردی", "online": "آنلاین"}
 
 MEMBER_CHOICES = {
     "role": [("دانشجو", "student"), ("دانش‌آموخته", "graduate"), ("حامی", "supporter")],
@@ -360,7 +470,12 @@ def form_screen(state: dict) -> tuple[str, dict]:
         text = (
             f"{spec['title']}\n"
             f"مرحله {step_index + 1} از {len(spec['steps'])}\n\n{prompt}\n\n"
-            "🔒 این فرم نمایشی است؛ هیچ اطلاعات شخصی یا مالی ذخیره نمی‌شود."
+            + (
+                "🔒 با تأیید نهایی، فقط علاقه‌مندی انتخاب‌شده و شناسهٔ بله برای پیگیری ذخیره می‌شود؛ "
+                "پرداخت یا اطلاعات هویتی دریافت نمی‌شود."
+                if spec.get("persist")
+                else "🔒 این فرم نمایشی است؛ هیچ اطلاعات شخصی یا مالی ذخیره نمی‌شود."
+            )
         )
         return text, build_inline_keyboard(rows)
 
@@ -370,10 +485,16 @@ def form_screen(state: dict) -> tuple[str, dict]:
         summary.append(f"• {prompt} {labels.get(state['answers'].get(key), '—')}")
     text = (
         f"{spec['title']}\nپیش‌نمایش نهایی:\n\n" + "\n".join(summary) +
-        "\n\nبا تأیید، فقط نتیجه نمایشی نشان داده می‌شود و چیزی ذخیره نخواهد شد."
+        (
+            "\n\nبا انتخاب «ثبت علاقه‌مندی»، شناسهٔ بله و همین انتخاب‌ها ذخیره می‌شوند. "
+            "این ثبت، پذیرش نهایی در کارگاه/شعبه یا دریافت وجه نیست."
+            if spec.get("persist")
+            else "\n\nبا تأیید، فقط نتیجه نمایشی نشان داده می‌شود و چیزی ذخیره نخواهد شد."
+        )
     )
+    confirm_label = "✅ ثبت علاقه‌مندی" if spec.get("persist") else "✅ تأیید نمایشی"
     return text, build_inline_keyboard([
-        [("✅ تأیید نمایشی", "form:confirm")],
+        [(confirm_label, "form:confirm")],
         [("⬅️ مرحله قبل", "form:back"), ("❌ لغو", "form:cancel")],
     ])
 
@@ -967,6 +1088,61 @@ def handle_callback_query(query: dict):
     if handle_member_callback(data, chat_id, user_id or chat_id, message_id):
         return
 
+    if data == "phase4:my_enterprises":
+        interests = get_member_repository().list_enterprise_interests(user_id or chat_id)
+        if interests:
+            lines = [
+                f"• {ENTERPRISE_IDEA_LABELS.get(item['idea_type'], item['idea_type'])} — "
+                f"{ENTERPRISE_CONTRIBUTION_LABELS.get(item['contribution'], item['contribution'])}"
+                for item in interests
+            ]
+            text = "ایده‌ها و علاقه‌مندی‌های شما برای بررسی کسب‌وکار اجتماعی:\n\n" + "\n".join(lines)
+        else:
+            text = "هنوز علاقه‌مندی‌ای برای ایده‌های کسب‌وکار اجتماعی ثبت نکرده‌اید."
+        show_screen(
+            chat_id,
+            message_id,
+            text,
+            build_inline_keyboard([[ ("⬅️ بازگشت", "menu:network"), ("🏠 منوی اصلی", "menu:main") ]]),
+        )
+        return
+
+    if data in {"phase3:my_workshops", "phase3:my_branches"}:
+        repository = get_member_repository()
+        if data == "phase3:my_workshops":
+            interests = repository.list_workshop_interests(user_id or chat_id)
+            if interests:
+                lines = [
+                    f"• {WORKSHOP_TOPIC_LABELS.get(item['topic'], item['topic'])} — "
+                    f"{ATTENDANCE_LABELS.get(item['attendance_mode'], item['attendance_mode'])}"
+                    for item in interests
+                ]
+                text = "📋 علاقه‌مندی‌های کارگاهی شما:\n\n" + "\n".join(lines)
+            else:
+                text = "هنوز علاقه‌مندی کارگاهی ثبت نکرده‌اید."
+            section = "learning"
+        else:
+            interests = repository.list_branch_interests(user_id or chat_id)
+            if interests:
+                lines = [
+                    f"• {item['university']} — "
+                    f"{BRANCH_ROLE_LABELS.get(item['team_role'], item['team_role'])}، "
+                    f"{AVAILABILITY_LABELS.get(item['availability'], item['availability'])} "
+                    f"({item['status']})"
+                    for item in interests
+                ]
+                text = "📋 اعلام آمادگی‌های شما برای توسعهٔ شعبه:\n\n" + "\n".join(lines)
+            else:
+                text = "هنوز اعلام آمادگی برای شعبهٔ دانشگاهی ثبت نکرده‌اید."
+            section = "network"
+        show_screen(
+            chat_id,
+            message_id,
+            text,
+            build_inline_keyboard([[ ("⬅️ بازگشت", f"menu:{section}"), ("🏠 منوی اصلی", "menu:main") ]]),
+        )
+        return
+
     if data.startswith("action:"):
         action = data.removeprefix("action:")
         section = action_section(action)
@@ -974,13 +1150,29 @@ def handle_callback_query(query: dict):
         keyboard = build_inline_keyboard([
             [("⬅️ بازگشت", f"menu:{section}"), ("🏠 منوی اصلی", "menu:main")]
         ])
-        show_screen(chat_id, message_id, f"{message_text}\n\nℹ️ پیش‌نمایش فاز ۱", keyboard)
+        phase_note = "ℹ️ اطلاعات و برنامهٔ فاز ۳" if action in PHASE3_ACTIONS else "ℹ️ پیش‌نمایش فاز ۱"
+        if action in PHASE4_ACTIONS:
+            phase_note = "ℹ️ اطلاعات و برنامهٔ فاز ۴"
+        show_screen(chat_id, message_id, f"{message_text}\n\n{phase_note}", keyboard)
         return
 
     if data.startswith("form:start:"):
         flow = data.removeprefix("form:start:")
         if flow not in FORM_SPECS:
             expired_form_screen(chat_id, message_id)
+            return
+        spec = FORM_SPECS[flow]
+        if spec.get("requires_member") and not get_member_repository().get_member(user_id or chat_id):
+            show_screen(
+                chat_id,
+                message_id,
+                "برای اعلام آمادگی شعبه، ابتدا پروفایل عضویت و دانشگاه خود را ثبت کنید.\n"
+                "اطلاعات تماس یا مدرک هویتی لازم نیست.",
+                build_inline_keyboard([
+                    [("📝 شروع عضویت", "member:start")],
+                    [("⬅️ بازگشت", "menu:network")],
+                ]),
+            )
             return
         with FORM_LOCK:
             state = {"flow": flow, "step": 0, "answers": {}}
@@ -1051,12 +1243,62 @@ def handle_callback_query(query: dict):
         if not state or state["step"] != len(FORM_SPECS[state["flow"]]["steps"]):
             expired_form_screen(chat_id, message_id)
             return
-        section = FORM_SPECS[state["flow"]]["section"]
+        spec = FORM_SPECS[state["flow"]]
+        section = spec["section"]
+        user_key = user_id or chat_id
+        if spec.get("persist") == "workshop_interest":
+            answers = state["answers"]
+            get_member_repository().save_workshop_interest(
+                bale_user_id=user_key,
+                chat_id=chat_id,
+                topic=answers["topic"],
+                attendance_mode=answers["attendance"],
+            )
+            result_text = (
+                "✅ علاقه‌مندی کارگاهی شما ثبت شد.\n"
+                "این ثبت به معنی پذیرش نهایی یا رزرو قطعی نیست؛ زمان، ظرفیت و شرایط بعداً اعلام می‌شود.\n"
+                "هیچ وجهی دریافت نشده است."
+            )
+        elif spec.get("persist") == "branch_interest":
+            repository = get_member_repository()
+            member = repository.get_member(user_key)
+            if not member:
+                expired_form_screen(chat_id, message_id)
+                return
+            answers = state["answers"]
+            repository.save_branch_interest(
+                bale_user_id=user_key,
+                chat_id=chat_id,
+                university=member.university,
+                team_role=answers["team_role"],
+                availability=answers["availability"],
+            )
+            result_text = (
+                "✅ اعلام آمادگی شما برای توسعهٔ شعبه ثبت شد.\n"
+                f"دانشگاه ثبت‌شده: {member.university}\n"
+                "این اعلام علاقه‌مندی است و به‌تنهایی به معنی ایجاد یا تأیید شعبه نیست."
+            )
+        elif spec.get("persist") == "enterprise_interest":
+            answers = state["answers"]
+            get_member_repository().save_enterprise_interest(
+                bale_user_id=user_key,
+                chat_id=chat_id,
+                idea_type=answers["idea_type"],
+                contribution=answers["contribution"],
+            )
+            result_text = (
+                "✅ علاقه‌مندی شما برای بررسی ایدهٔ کسب‌وکار اجتماعی ثبت شد.\n"
+                "این ثبت به معنی تصویب طرح، ایجاد شرکت، تعهد مالی یا تضمین درآمد نیست؛ تصمیم‌گیری پس از بررسی مسئولان انجام می‌شود."
+            )
+        else:
+            result_text = (
+                "✅ پیش‌نمایش فرم با موفقیت پایان یافت.\n"
+                "هیچ اطلاعاتی ذخیره و هیچ پرداختی انجام نشد."
+            )
         show_screen(
             chat_id,
             message_id,
-            "✅ پیش‌نمایش فرم با موفقیت پایان یافت.\n"
-            "هیچ اطلاعاتی ذخیره و هیچ پرداختی انجام نشد.",
+            result_text,
             build_inline_keyboard([
                 [("⬅️ بازگشت به بخش", f"menu:{section}"), ("🏠 منوی اصلی", "menu:main")]
             ]),

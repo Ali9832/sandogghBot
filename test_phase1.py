@@ -1,12 +1,25 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import bot
+from database import MemberRepository
 
 
 class PhaseOneTests(unittest.TestCase):
     def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.old_repository = bot._member_repository
+        bot._member_repository = MemberRepository(Path(self.temporary_directory.name) / "phase1.db")
         bot.FORM_SESSIONS.clear()
+
+    def tearDown(self):
+        bot._member_repository = self.old_repository
+        bot.FORM_SESSIONS.clear()
+        bot.MEMBER_SESSIONS.clear()
+        bot.PENDING_REFERRALS.clear()
+        self.temporary_directory.cleanup()
 
     @staticmethod
     def query(data: str) -> dict:
@@ -20,8 +33,10 @@ class PhaseOneTests(unittest.TestCase):
     def test_main_menu_is_inline_and_two_columns(self):
         keyboard = bot.main_menu_keyboard()
         self.assertIn("inline_keyboard", keyboard)
-        self.assertEqual(4, len(keyboard["inline_keyboard"]))
+        self.assertEqual(len(bot.MAIN_MENU_ROWS), len(keyboard["inline_keyboard"]))
         self.assertTrue(all(len(row) == 2 for row in keyboard["inline_keyboard"]))
+        self.assertIn("menu:network", {button["callback_data"] for row in keyboard["inline_keyboard"] for button in row})
+        self.assertIn("menu:learning", {button["callback_data"] for row in keyboard["inline_keyboard"] for button in row})
 
     def test_every_section_has_back_to_main(self):
         for section in bot.SECTION_DESCRIPTIONS:
@@ -62,6 +77,15 @@ class PhaseOneTests(unittest.TestCase):
     @patch.object(bot, "show_screen")
     @patch.object(bot, "answer_callback_query")
     def test_every_demo_form_can_reach_confirmation(self, _answer_mock, _screen_mock):
+        bot.get_member_repository().create_member(
+            bale_user_id=20,
+            chat_id=10,
+            display_name="عضو نمونه",
+            university="دانشگاه نمونه",
+            role="student",
+            participation="member",
+            notification="important",
+        )
         session_key = bot.form_session_key(10, 20)
         for flow, spec in bot.FORM_SPECS.items():
             bot.handle_callback_query(self.query(f"form:start:{flow}"))

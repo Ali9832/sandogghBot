@@ -74,6 +74,49 @@ class MemberRepository:
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_members_referred_by ON members(referred_by)"
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS workshop_interests (
+                    bale_user_id TEXT NOT NULL,
+                    chat_id TEXT NOT NULL,
+                    topic TEXT NOT NULL,
+                    attendance_mode TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'interested',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (bale_user_id, topic)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS branch_interests (
+                    bale_user_id TEXT NOT NULL,
+                    chat_id TEXT NOT NULL,
+                    university TEXT NOT NULL,
+                    team_role TEXT NOT NULL,
+                    availability TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (bale_user_id, university)
+                )
+                """
+            )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS enterprise_interests (
+                    bale_user_id TEXT NOT NULL,
+                    chat_id TEXT NOT NULL,
+                    idea_type TEXT NOT NULL,
+                    contribution TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'proposed',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (bale_user_id, idea_type)
+                )
+                """
+            )
 
     @staticmethod
     def _to_member(row: sqlite3.Row | None) -> Member | None:
@@ -167,3 +210,114 @@ class MemberRepository:
                 (value, now, str(bale_user_id)),
             )
         return self.get_member(bale_user_id)
+
+    def save_workshop_interest(
+        self,
+        *,
+        bale_user_id: int | str,
+        chat_id: int | str,
+        topic: str,
+        attendance_mode: str,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO workshop_interests (
+                    bale_user_id, chat_id, topic, attendance_mode, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bale_user_id, topic) DO UPDATE SET
+                    chat_id = excluded.chat_id,
+                    attendance_mode = excluded.attendance_mode,
+                    updated_at = excluded.updated_at
+                """,
+                (str(bale_user_id), str(chat_id), topic, attendance_mode, now, now),
+            )
+
+    def save_branch_interest(
+        self,
+        *,
+        bale_user_id: int | str,
+        chat_id: int | str,
+        university: str,
+        team_role: str,
+        availability: str,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO branch_interests (
+                    bale_user_id, chat_id, university, team_role, availability,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bale_user_id, university) DO UPDATE SET
+                    chat_id = excluded.chat_id,
+                    team_role = excluded.team_role,
+                    availability = excluded.availability,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    str(bale_user_id), str(chat_id), university, team_role,
+                    availability, now, now,
+                ),
+            )
+
+    def list_workshop_interests(self, bale_user_id: int | str) -> list[dict[str, str]]:
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT topic, attendance_mode, status, created_at
+                FROM workshop_interests WHERE bale_user_id = ?
+                ORDER BY created_at DESC
+                """,
+                (str(bale_user_id),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_branch_interests(self, bale_user_id: int | str) -> list[dict[str, str]]:
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT university, team_role, availability, status, created_at
+                FROM branch_interests WHERE bale_user_id = ?
+                ORDER BY created_at DESC
+                """,
+                (str(bale_user_id),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def save_enterprise_interest(
+        self,
+        *,
+        bale_user_id: int | str,
+        chat_id: int | str,
+        idea_type: str,
+        contribution: str,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO enterprise_interests (
+                    bale_user_id, chat_id, idea_type, contribution, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(bale_user_id, idea_type) DO UPDATE SET
+                    chat_id = excluded.chat_id,
+                    contribution = excluded.contribution,
+                    updated_at = excluded.updated_at
+                """,
+                (str(bale_user_id), str(chat_id), idea_type, contribution, now, now),
+            )
+
+    def list_enterprise_interests(self, bale_user_id: int | str) -> list[dict[str, str]]:
+        with self._lock, self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT idea_type, contribution, status, created_at
+                FROM enterprise_interests WHERE bale_user_id = ?
+                ORDER BY created_at DESC
+                """,
+                (str(bale_user_id),),
+            ).fetchall()
+        return [dict(row) for row in rows]

@@ -63,6 +63,37 @@ class PhaseTwoDatabaseTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.repository.update_member(1, "status", "active")
 
+    def test_workshop_interest_is_idempotently_updated(self):
+        self.repository.save_workshop_interest(
+            bale_user_id=1, chat_id=1, topic="programming", attendance_mode="online"
+        )
+        self.repository.save_workshop_interest(
+            bale_user_id=1, chat_id=1, topic="programming", attendance_mode="either"
+        )
+        interests = self.repository.list_workshop_interests(1)
+        self.assertEqual(1, len(interests))
+        self.assertEqual("either", interests[0]["attendance_mode"])
+
+    def test_branch_interest_is_idempotently_updated(self):
+        self.repository.save_branch_interest(
+            bale_user_id=1,
+            chat_id=1,
+            university="دانشگاه نمونه",
+            team_role="local_coordination",
+            availability="monthly",
+        )
+        self.repository.save_branch_interest(
+            bale_user_id=1,
+            chat_id=1,
+            university="دانشگاه نمونه",
+            team_role="workshops",
+            availability="online",
+        )
+        interests = self.repository.list_branch_interests(1)
+        self.assertEqual(1, len(interests))
+        self.assertEqual("workshops", interests[0]["team_role"])
+        self.assertEqual("pending", interests[0]["status"])
+
 
 class PhaseTwoBotFlowTests(unittest.TestCase):
     def setUp(self):
@@ -147,6 +178,43 @@ class PhaseTwoBotFlowTests(unittest.TestCase):
         self.assertTrue(bot.process_member_text(self.message("x")))
         self.assertEqual("display_name", bot.MEMBER_SESSIONS[("20", "20")]["step"])
         send_mock.assert_called_once()
+
+    @patch.object(bot, "show_screen")
+    @patch.object(bot, "answer_callback_query")
+    def test_workshop_interest_flow_persists_and_can_be_viewed(self, _answer, screen_mock):
+        bot.handle_callback_query(self.query("form:start:workshop"))
+        bot.handle_callback_query(self.query("form:pick:workshop:topic:programming"))
+        bot.handle_callback_query(self.query("form:pick:workshop:attendance:online"))
+        bot.handle_callback_query(self.query("form:confirm"))
+
+        interests = bot.get_member_repository().list_workshop_interests(20)
+        self.assertEqual("programming", interests[0]["topic"])
+        self.assertEqual("online", interests[0]["attendance_mode"])
+        self.assertIn("هیچ وجهی دریافت نشده", screen_mock.call_args.args[2])
+
+        bot.handle_callback_query(self.query("phase3:my_workshops"))
+        self.assertIn("برنامه‌نویسی", screen_mock.call_args.args[2])
+
+    @patch.object(bot, "show_screen")
+    @patch.object(bot, "answer_callback_query")
+    def test_branch_interest_requires_member_and_uses_profile_university(self, _answer, screen_mock):
+        bot.handle_callback_query(self.query("form:start:branch", user_id=99))
+        self.assertNotIn(bot.form_session_key(99, 99), bot.FORM_SESSIONS)
+        self.assertIn("ابتدا پروفایل عضویت", screen_mock.call_args.args[2])
+
+        self.finish_registration(20)
+        bot.handle_callback_query(self.query("form:start:branch"))
+        bot.handle_callback_query(self.query("form:pick:branch:team_role:local_coordination"))
+        bot.handle_callback_query(self.query("form:pick:branch:availability:monthly"))
+        bot.handle_callback_query(self.query("form:confirm"))
+
+        interests = bot.get_member_repository().list_branch_interests(20)
+        self.assertEqual("دانشگاه نمونه", interests[0]["university"])
+        self.assertEqual("local_coordination", interests[0]["team_role"])
+        self.assertIn("دانشگاه نمونه", screen_mock.call_args.args[2])
+
+        bot.handle_callback_query(self.query("phase3:my_branches"))
+        self.assertIn("هماهنگی محلی", screen_mock.call_args.args[2])
 
 
 if __name__ == "__main__":
