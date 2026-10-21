@@ -74,14 +74,14 @@ class PhaseOneTests(unittest.TestCase):
 
     @patch.object(bot, "show_screen")
     @patch.object(bot, "answer_callback_query")
-    def test_member_form_can_finish_and_clears_memory(self, answer_mock, screen_mock):
-        bot.handle_callback_query(self.query("form:start:member"))
+    def test_demo_form_can_finish_and_clears_memory(self, answer_mock, screen_mock):
+        bot.handle_callback_query(self.query("form:start:volunteer"))
         session_key = bot.form_session_key(10, 20)
         self.assertIn(session_key, bot.FORM_SESSIONS)
 
-        bot.handle_callback_query(self.query("form:pick:member:role:student"))
-        bot.handle_callback_query(self.query("form:pick:member:participation:member"))
-        bot.handle_callback_query(self.query("form:pick:member:notification:bale"))
+        bot.handle_callback_query(self.query("form:pick:volunteer:skill:education"))
+        bot.handle_callback_query(self.query("form:pick:volunteer:availability:weekly"))
+        bot.handle_callback_query(self.query("form:pick:volunteer:mode:online"))
         self.assertEqual(3, bot.FORM_SESSIONS[session_key]["step"])
 
         bot.handle_callback_query(self.query("form:confirm"))

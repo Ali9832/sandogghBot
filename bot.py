@@ -10,6 +10,8 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import requests
 from dotenv import load_dotenv
 
+from database import Member, MemberRepository
+
 # بارگذاری متغیرهای محیطی از .env (در صورت وجود لوکال)
 load_dotenv()
 
@@ -30,6 +32,17 @@ WEBSITE_URL = os.getenv(
     "WEBSITE_URL",
     "https://sandogh-hamyari.jauntyboar32.chatgpt.site",
 )
+BOT_USERNAME = os.getenv("BOT_USERNAME", "sandoghtaavonibot").lstrip("@")
+DATABASE_PATH = os.getenv("DATABASE_PATH", "data/sandogh.db")
+
+_member_repository: MemberRepository | None = None
+
+
+def get_member_repository() -> MemberRepository:
+    global _member_repository
+    if _member_repository is None:
+        _member_repository = MemberRepository(DATABASE_PATH)
+    return _member_repository
 
 # استخر رشته‌ها برای پردازش همزمان پیام‌ها
 executor = ThreadPoolExecutor(max_workers=10)
@@ -82,10 +95,10 @@ SECTION_DESCRIPTIONS = {
 
 SUBMENU_ROWS: dict[str, list[list[Button]]] = {
     "account": [
-        [("📝 ثبت‌نام آزمایشی", "form:start:member"), ("🪪 وضعیت عضویت من", "action:member_status")],
+        [("📝 ثبت‌نام عضو", "member:start"), ("🪪 وضعیت عضویت من", "member:status")],
         [("💳 حق عضویت", "action:membership_fee"), ("🔄 مشارکت ثابت آزمایشی", "form:start:contribution")],
-        [("📜 سوابق پرداخت", "action:payment_history"), ("✏️ ویرایش اطلاعات", "action:profile_edit")],
-        [("🎁 دعوت دوستان", "action:referral")],
+        [("📜 سوابق پرداخت", "action:payment_history"), ("✏️ ویرایش اطلاعات", "member:edit")],
+        [("🎁 دعوت دوستان", "member:referral")],
     ],
     "loan": [
         [("📘 شرایط دریافت وام", "action:loan_terms"), ("➕ درخواست آزمایشی وام", "form:start:loan")],
@@ -135,11 +148,8 @@ def submenu_keyboard(section: str) -> dict:
 
 
 ACTION_MESSAGES = {
-    "member_status": "در نسخهٔ آزمایشی هنوز عضویت واقعی ایجاد نمی‌شود.",
     "membership_fee": "در فاز ۱ هیچ پرداختی دریافت نمی‌شود؛ این بخش فقط پیش‌نمایش است.",
     "payment_history": "پس از اتصال سامانه مالی، سوابق تأییدشده اینجا نمایش داده می‌شود.",
-    "profile_edit": "ویرایش اطلاعات پس از فعال‌شدن حساب واقعی در دسترس خواهد بود.",
-    "referral": "لینک دعوت اختصاصی در فاز حساب کاربری فعال می‌شود.",
     "loan_terms": "نمونه شرایط: سابقه عضویت، معرفی ضامن و بررسی کمیته؛ ارقام نهایی پس از تصویب اساسنامه اعلام می‌شوند.",
     "loan_track": "پیگیری واقعی پس از اتصال پرونده‌های وام و کد رهگیری فعال می‌شود.",
     "installments": "جدول اقساط و سررسیدها در فاز عملیاتی وام نمایش داده می‌شود.",
@@ -180,15 +190,6 @@ ACTION_MESSAGES = {
 
 
 FORM_SPECS = {
-    "member": {
-        "title": "📝 فرم آزمایشی عضویت",
-        "section": "account",
-        "steps": [
-            ("role", "نوع همکاری شما چیست؟", [("دانشجو", "student"), ("دانش‌آموخته", "graduate"), ("حامی", "supporter")]),
-            ("participation", "مایل به کدام نوع مشارکت هستید؟", [("عضویت", "member"), ("داوطلبی", "volunteer"), ("حمایت مالی", "donor")]),
-            ("notification", "روش اطلاع‌رسانی دلخواه؟", [("پیام در بله", "bale"), ("فقط اعلان‌های مهم", "important")]),
-        ],
-    },
     "contribution": {
         "title": "🔄 فرم آزمایشی مشارکت ثابت",
         "section": "account",
@@ -261,10 +262,82 @@ FORM_SPECS = {
 
 FORM_SESSIONS: dict[tuple[str, str], dict] = {}
 FORM_LOCK = threading.Lock()
+MEMBER_SESSIONS: dict[tuple[str, str], dict] = {}
+PENDING_REFERRALS: dict[tuple[str, str], str] = {}
+MEMBER_LOCK = threading.Lock()
+
+MEMBER_CHOICES = {
+    "role": [("دانشجو", "student"), ("دانش‌آموخته", "graduate"), ("حامی", "supporter")],
+    "participation": [("عضو", "member"), ("داوطلب", "volunteer"), ("حامی مالی", "donor")],
+    "notification": [("همه پیام‌ها", "all"), ("فقط مهم", "important")],
+}
+MEMBER_FIELD_LABELS = {
+    "display_name": "نام نمایشی",
+    "university": "دانشگاه/مرکز آموزشی",
+    "role": "نقش",
+    "participation": "نوع مشارکت",
+    "notification": "اعلان‌ها",
+}
+MEMBER_STATUS_LABELS = {
+    "pending": "در انتظار بررسی",
+    "active": "فعال",
+    "suspended": "تعلیق‌شده",
+}
 
 
 def form_session_key(chat_id: int | str, user_id: int | str | None) -> tuple[str, str]:
     return str(chat_id), str(user_id or chat_id)
+
+
+def choice_label(field: str, value: str) -> str:
+    return dict(MEMBER_CHOICES.get(field, [])).get(value, value)
+
+
+def member_profile_text(member: Member) -> str:
+    return (
+        "🪪 وضعیت عضویت شما\n\n"
+        f"شماره عضویت: {member.membership_number}\n"
+        f"نام نمایشی: {member.display_name}\n"
+        f"دانشگاه/مرکز: {member.university}\n"
+        f"نقش: {choice_label('role', member.role)}\n"
+        f"نوع مشارکت: {choice_label('participation', member.participation)}\n"
+        f"اعلان‌ها: {choice_label('notification', member.notification)}\n"
+        f"وضعیت: {MEMBER_STATUS_LABELS.get(member.status, member.status)}\n\n"
+        "برای حفظ حریم خصوصی، کد ملی، شماره کارت و مدرک هویتی دریافت نشده است."
+    )
+
+
+def member_summary_text(state: dict) -> str:
+    answers = state["answers"]
+    return (
+        "📝 پیش‌نمایش ثبت‌نام\n\n"
+        f"نام نمایشی: {answers['display_name']}\n"
+        f"دانشگاه/مرکز: {answers['university']}\n"
+        f"نقش: {choice_label('role', answers['role'])}\n"
+        f"نوع مشارکت: {choice_label('participation', answers['participation'])}\n"
+        f"اعلان‌ها: {choice_label('notification', answers['notification'])}\n\n"
+        "با تأیید، این اطلاعات حداقلی در پایگاه داده صندوق ذخیره می‌شود."
+    )
+
+
+def member_choice_keyboard(
+    field: str,
+    prefix: str = "member:pick",
+    back_callback: str | None = "member:back",
+) -> dict:
+    rows = []
+    choices = MEMBER_CHOICES[field]
+    for index in range(0, len(choices), 2):
+        rows.append([
+            (label, f"{prefix}:{field}:{value}")
+            for label, value in choices[index:index + 2]
+        ])
+    navigation = []
+    if back_callback:
+        navigation.append(("⬅️ مرحله قبل", back_callback))
+    navigation.append(("❌ لغو", "member:cancel"))
+    rows.append(navigation)
+    return build_inline_keyboard(rows)
 
 
 def form_screen(state: dict) -> tuple[str, dict]:
@@ -394,6 +467,78 @@ def show_screen(
     send_message(chat_id, text, reply_markup)
 
 
+def normalize_profile_text(value: str, maximum: int) -> str | None:
+    normalized = " ".join(value.split())
+    if len(normalized) < 2 or len(normalized) > maximum:
+        return None
+    if any(ord(character) < 32 for character in normalized):
+        return None
+    return normalized
+
+
+def process_member_text(message: dict) -> bool:
+    """ورودی متنی محدود ثبت‌نام/ویرایش را پردازش می‌کند."""
+    chat_id = (message.get("chat") or {}).get("id")
+    user_id = (message.get("from") or {}).get("id") or chat_id
+    text = str(message.get("text") or "").strip()
+    if not chat_id or not text:
+        return False
+    session_key = form_session_key(chat_id, user_id)
+    with MEMBER_LOCK:
+        state = MEMBER_SESSIONS.get(session_key)
+        if not state:
+            return False
+        step = state["step"]
+
+    field = step.removeprefix("edit_")
+    if field not in {"display_name", "university"}:
+        return False
+    maximum = 50 if field == "display_name" else 80
+    normalized = normalize_profile_text(text, maximum)
+    if normalized is None:
+        send_message(
+            chat_id,
+            f"مقدار نامعتبر است. {MEMBER_FIELD_LABELS[field]} باید بین ۲ تا {maximum} نویسه باشد.\n"
+            "برای خروج /cancel را بفرستید.",
+        )
+        return True
+
+    if state["mode"] == "edit":
+        member = get_member_repository().update_member(user_id, field, normalized)
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        if member:
+            send_message(
+                chat_id,
+                f"✅ {MEMBER_FIELD_LABELS[field]} به‌روزرسانی شد.\n\n{member_profile_text(member)}",
+                build_inline_keyboard([[("⬅️ حساب و عضویت", "menu:account")]]),
+            )
+        else:
+            send_message(chat_id, "عضویت پیدا نشد.", submenu_keyboard("account"))
+        return True
+
+    with MEMBER_LOCK:
+        state = MEMBER_SESSIONS.get(session_key)
+        if not state:
+            return True
+        state["answers"][field] = normalized
+        if field == "display_name":
+            state["step"] = "university"
+        else:
+            state["step"] = "role"
+
+    if field == "display_name":
+        send_message(
+            chat_id,
+            "نام دانشگاه یا مرکز آموزشی را وارد کنید.\n"
+            "اطلاعات هویتی، شماره دانشجویی یا کد ملی نفرستید.",
+            build_inline_keyboard([[("⬅️ مرحله قبل", "member:back"), ("❌ لغو", "member:cancel")]]),
+        )
+    else:
+        send_message(chat_id, "نقش خود را انتخاب کنید:", member_choice_keyboard("role"))
+    return True
+
+
 # ─────────────────────────────────────────────
 #  پردازش پیام‌های دریافتی
 # ─────────────────────────────────────────────
@@ -406,26 +551,59 @@ def handle_message(message: dict):
         return
 
     text = message.get("text", "").strip()
+    user_id = (message.get("from") or {}).get("id") or chat_id
+    session_key = form_session_key(chat_id, user_id)
+
+    if text in {"/cancel", "لغو"}:
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        with FORM_LOCK:
+            FORM_SESSIONS.pop(session_key, None)
+        send_message(chat_id, "عملیات جاری لغو شد.", main_menu_keyboard())
+        return
 
     # ── دستورهای اصلی ───────────────────────
-    if text.startswith("/start") or text == "/menu":
+    if text.startswith("/start"):
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        parts = text.split(maxsplit=1)
+        referral_message = ""
+        if len(parts) == 2 and parts[1].startswith("ref_"):
+            referral_code = parts[1].removeprefix("ref_")
+            if get_member_repository().get_by_referral_code(referral_code):
+                with MEMBER_LOCK:
+                    PENDING_REFERRALS[session_key] = referral_code
+                referral_message = "\n🎁 دعوت‌نامه معتبر شناسایی شد؛ پس از ثبت‌نام برای معرف ثبت می‌شود."
+            else:
+                referral_message = "\n⚠️ کد دعوت معتبر نیست؛ می‌توانید بدون معرف ادامه دهید."
         send_message(
             chat_id,
             "سلام! به صندوق همیاری دانشجویی خوش آمدید 🌱\n"
-            "نسخه تعاملی فاز ۱ فعال است. یکی از گزینه‌ها را انتخاب کنید:\n\n"
-            "🔒 در این نسخه هیچ اطلاعات حساس یا پرداختی دریافت نمی‌شود.",
+            "نسخه تعاملی فاز ۲ فعال است. یکی از گزینه‌ها را انتخاب کنید:\n\n"
+            "🔒 کد ملی، اطلاعات بانکی یا مدرک هویتی دریافت نمی‌شود."
+            f"{referral_message}",
             reply_markup=main_menu_keyboard(),
         )
+        return
+
+    if text == "/menu":
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        send_message(chat_id, "🏠 منوی اصلی", reply_markup=main_menu_keyboard())
+        return
+
+    if process_member_text(message):
         return
 
     if text in {"/help", "راهنما"}:
         send_message(
             chat_id,
-            "راهنمای نسخه آزمایشی:\n"
+            "راهنمای نسخه فاز ۲:\n"
             "• برای نمایش منوی اصلی /menu را بفرستید.\n"
             "• منوها و فرم‌های نمایشی با دکمه‌های شیشه‌ای کار می‌کنند.\n"
             "• با «مرحله قبل» و «لغو» می‌توانید در فرم حرکت کنید.\n"
-            "• هیچ پاسخ فرم، اطلاعات شخصی یا پرداختی ذخیره نمی‌شود.\n\n"
+            "• پاسخ فرم‌های نمایشی و هیچ اطلاعات پرداختی ذخیره نمی‌شود.\n"
+            "• اطلاعات حداقلی عضویت فقط پس از رضایت شما ذخیره می‌شود.\n\n"
             f"سایت پروژه: {WEBSITE_URL}",
             reply_markup=main_menu_keyboard(),
         )
@@ -478,6 +656,279 @@ def expired_form_screen(chat_id: int | str, message_id: int | None) -> None:
     )
 
 
+def handle_member_callback(
+    data: str,
+    chat_id: int | str,
+    user_id: int | str,
+    message_id: int | None,
+) -> bool:
+    """رویدادهای ثبت‌نام، پروفایل و دعوت اعضا را مدیریت می‌کند."""
+    if not data.startswith("member:"):
+        return False
+    repository = get_member_repository()
+    session_key = form_session_key(chat_id, user_id)
+
+    if data == "member:start":
+        member = repository.get_member(user_id)
+        if member:
+            show_screen(
+                chat_id,
+                message_id,
+                f"شما قبلاً ثبت‌نام کرده‌اید.\n\n{member_profile_text(member)}",
+                build_inline_keyboard([[("✏️ ویرایش", "member:edit"), ("⬅️ بازگشت", "menu:account")]]),
+            )
+            return True
+        show_screen(
+            chat_id,
+            message_id,
+            "📝 ثبت‌نام عضویت\n\n"
+            "در این مرحله فقط نام نمایشی، دانشگاه، نقش و ترجیحات عضویت ذخیره می‌شود.\n"
+            "کد ملی، شماره دانشجویی، شماره تماس، اطلاعات بانکی و مدرک هویتی دریافت نمی‌شود.\n\n"
+            "با شروع ثبت‌نام، ذخیره این اطلاعات حداقلی را می‌پذیرید.",
+            build_inline_keyboard([
+                [("✅ شروع ثبت‌نام", "member:consent")],
+                [("⬅️ انصراف", "menu:account")],
+            ]),
+        )
+        return True
+
+    if data == "member:consent":
+        if repository.get_member(user_id):
+            show_screen(chat_id, message_id, "عضویت شما قبلاً ثبت شده است.", submenu_keyboard("account"))
+            return True
+        with MEMBER_LOCK:
+            referred_by = PENDING_REFERRALS.pop(session_key, None)
+            MEMBER_SESSIONS[session_key] = {
+                "mode": "register",
+                "step": "display_name",
+                "answers": {},
+                "referred_by": referred_by,
+            }
+        show_screen(
+            chat_id,
+            message_id,
+            "مرحله ۱: یک نام نمایشی بین ۲ تا ۵۰ نویسه ارسال کنید.\n"
+            "برای توقف می‌توانید /cancel را بفرستید.",
+            build_inline_keyboard([[("❌ لغو", "member:cancel")]]),
+        )
+        return True
+
+    if data.startswith("member:pick:"):
+        parts = data.split(":", 3)
+        if len(parts) != 4:
+            return True
+        _, _, field, value = parts
+        with MEMBER_LOCK:
+            state = MEMBER_SESSIONS.get(session_key)
+            valid_values = {item_value for _, item_value in MEMBER_CHOICES.get(field, [])}
+            if (
+                not state
+                or state["mode"] != "register"
+                or state["step"] != field
+                or value not in valid_values
+            ):
+                state = None
+            else:
+                state["answers"][field] = value
+                next_steps = {"role": "participation", "participation": "notification", "notification": "confirm"}
+                state["step"] = next_steps[field]
+                snapshot = {**state, "answers": dict(state["answers"])}
+        if state is None:
+            expired_form_screen(chat_id, message_id)
+            return True
+        if snapshot["step"] == "confirm":
+            show_screen(
+                chat_id,
+                message_id,
+                member_summary_text(snapshot),
+                build_inline_keyboard([
+                    [("✅ ثبت عضویت", "member:confirm")],
+                    [("⬅️ مرحله قبل", "member:back"), ("❌ لغو", "member:cancel")],
+                ]),
+            )
+        else:
+            prompt = "نوع مشارکت را انتخاب کنید:" if snapshot["step"] == "participation" else "تنظیم اعلان‌ها را انتخاب کنید:"
+            show_screen(chat_id, message_id, prompt, member_choice_keyboard(snapshot["step"]))
+        return True
+
+    if data == "member:back":
+        prompts = {
+            "display_name": "نام نمایشی را دوباره ارسال کنید:",
+            "university": "نام دانشگاه یا مرکز آموزشی را دوباره ارسال کنید:",
+        }
+        with MEMBER_LOCK:
+            state = MEMBER_SESSIONS.get(session_key)
+            if not state or state["mode"] != "register":
+                state = None
+            else:
+                previous = {
+                    "university": "display_name",
+                    "role": "university",
+                    "participation": "role",
+                    "notification": "participation",
+                    "confirm": "notification",
+                }.get(state["step"])
+                if previous:
+                    state["step"] = previous
+                    state["answers"].pop(previous, None)
+                    snapshot = {**state, "answers": dict(state["answers"])}
+                else:
+                    snapshot = None
+        if not state or not snapshot:
+            expired_form_screen(chat_id, message_id)
+        elif snapshot["step"] in prompts:
+            show_screen(
+                chat_id,
+                message_id,
+                prompts[snapshot["step"]],
+                build_inline_keyboard([[("❌ لغو", "member:cancel")]]),
+            )
+        else:
+            show_screen(
+                chat_id,
+                message_id,
+                f"{MEMBER_FIELD_LABELS[snapshot['step']]} را دوباره انتخاب کنید:",
+                member_choice_keyboard(snapshot["step"]),
+            )
+        return True
+
+    if data == "member:confirm":
+        with MEMBER_LOCK:
+            state = MEMBER_SESSIONS.get(session_key)
+            if not state or state["mode"] != "register" or state["step"] != "confirm":
+                state = None
+            else:
+                state = {**state, "answers": dict(state["answers"])}
+        if state is None:
+            expired_form_screen(chat_id, message_id)
+            return True
+        if repository.get_member(user_id):
+            with MEMBER_LOCK:
+                MEMBER_SESSIONS.pop(session_key, None)
+            show_screen(chat_id, message_id, "عضویت شما قبلاً ثبت شده است.", submenu_keyboard("account"))
+            return True
+        answers = state["answers"]
+        member = repository.create_member(
+            bale_user_id=user_id,
+            chat_id=chat_id,
+            display_name=answers["display_name"],
+            university=answers["university"],
+            role=answers["role"],
+            participation=answers["participation"],
+            notification=answers["notification"],
+            referred_by=state.get("referred_by"),
+        )
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        show_screen(
+            chat_id,
+            message_id,
+            f"✅ ثبت‌نام انجام شد.\n\n{member_profile_text(member)}",
+            build_inline_keyboard([[("🎁 کد دعوت من", "member:referral"), ("⬅️ حساب و عضویت", "menu:account")]]),
+        )
+        return True
+
+    if data == "member:status":
+        member = repository.get_member(user_id)
+        if not member:
+            show_screen(
+                chat_id,
+                message_id,
+                "هنوز عضو نشده‌اید.",
+                build_inline_keyboard([[("📝 ثبت‌نام", "member:start"), ("⬅️ بازگشت", "menu:account")]]),
+            )
+        else:
+            show_screen(
+                chat_id,
+                message_id,
+                member_profile_text(member),
+                build_inline_keyboard([[("✏️ ویرایش", "member:edit"), ("⬅️ بازگشت", "menu:account")]]),
+            )
+        return True
+
+    if data == "member:edit":
+        if not repository.get_member(user_id):
+            show_screen(chat_id, message_id, "برای ویرایش ابتدا ثبت‌نام کنید.", submenu_keyboard("account"))
+            return True
+        show_screen(
+            chat_id,
+            message_id,
+            "کدام بخش پروفایل را می‌خواهید ویرایش کنید؟",
+            build_inline_keyboard([
+                [("نام نمایشی", "member:editfield:display_name"), ("دانشگاه", "member:editfield:university")],
+                [("نقش", "member:editfield:role"), ("نوع مشارکت", "member:editfield:participation")],
+                [("اعلان‌ها", "member:editfield:notification")],
+                [("⬅️ بازگشت", "menu:account")],
+            ]),
+        )
+        return True
+
+    if data.startswith("member:editfield:"):
+        field = data.removeprefix("member:editfield:")
+        if field not in MEMBER_FIELD_LABELS or not repository.get_member(user_id):
+            expired_form_screen(chat_id, message_id)
+            return True
+        if field in {"display_name", "university"}:
+            with MEMBER_LOCK:
+                MEMBER_SESSIONS[session_key] = {"mode": "edit", "step": f"edit_{field}", "answers": {}}
+            show_screen(
+                chat_id,
+                message_id,
+                f"مقدار جدید «{MEMBER_FIELD_LABELS[field]}» را ارسال کنید.\nبرای توقف /cancel را بفرستید.",
+                build_inline_keyboard([[("❌ لغو", "member:cancel")]]),
+            )
+        else:
+            show_screen(
+                chat_id,
+                message_id,
+                f"مقدار جدید «{MEMBER_FIELD_LABELS[field]}» را انتخاب کنید:",
+                member_choice_keyboard(field, prefix="member:update", back_callback="member:edit"),
+            )
+        return True
+
+    if data.startswith("member:update:"):
+        parts = data.split(":", 3)
+        if len(parts) != 4:
+            return True
+        _, _, field, value = parts
+        valid_values = {item_value for _, item_value in MEMBER_CHOICES.get(field, [])}
+        if value not in valid_values:
+            expired_form_screen(chat_id, message_id)
+            return True
+        member = repository.update_member(user_id, field, value)
+        if member:
+            show_screen(chat_id, message_id, f"✅ اطلاعات به‌روزرسانی شد.\n\n{member_profile_text(member)}", submenu_keyboard("account"))
+        else:
+            show_screen(chat_id, message_id, "عضویت پیدا نشد.", submenu_keyboard("account"))
+        return True
+
+    if data == "member:referral":
+        member = repository.get_member(user_id)
+        if not member:
+            show_screen(chat_id, message_id, "برای دریافت کد دعوت ابتدا ثبت‌نام کنید.", submenu_keyboard("account"))
+            return True
+        referral_count = repository.count_referrals(member.referral_code)
+        referral_link = f"https://ble.ir/{BOT_USERNAME}?start=ref_{member.referral_code}"
+        show_screen(
+            chat_id,
+            message_id,
+            "🎁 دعوت دوستان\n\n"
+            f"کد دعوت: {member.referral_code}\n"
+            f"لینک دعوت: {referral_link}\n"
+            f"تعداد ثبت‌نام با کد شما: {referral_count}",
+            build_inline_keyboard([[("⬅️ حساب و عضویت", "menu:account")]]),
+        )
+        return True
+
+    if data == "member:cancel":
+        with MEMBER_LOCK:
+            MEMBER_SESSIONS.pop(session_key, None)
+        show_screen(chat_id, message_id, "عملیات عضویت لغو شد.", submenu_keyboard("account"))
+        return True
+
+    return False
+
+
 def handle_callback_query(query: dict):
     """مدیریت منوها و فرم‌های شیشه‌ای فاز یک."""
     callback_id = str(query.get("id") or query.get("callback_query_id") or "")
@@ -512,6 +963,9 @@ def handle_callback_query(query: dict):
                 submenu_keyboard(section),
             )
             return
+
+    if handle_member_callback(data, chat_id, user_id or chat_id, message_id):
+        return
 
     if data.startswith("action:"):
         action = data.removeprefix("action:")
